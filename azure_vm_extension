@@ -1,0 +1,28 @@
+resource "azurerm_virtual_machine_extension" "main" {
+  # Custom VM extension documentation https://docs.microsoft.com/en-us/azure/virtual-machines/extensions/custom-script-windows
+  # additional documentation http://teknews.cloud/bootstrapping-azure-vms-with-terraform/, https://github.com/terraform-providers/terraform-provider-azurerm/issues/728
+  name = "vm-extension-${var.location_id}-${var.environment}-${var.cost_centre}-${var.project}-${var.seq_id}-${count.index}"
+  location = "${azurerm_resource_group.main.location}"
+  resource_group_name = "${azurerm_resource_group.main.name}"
+  virtual_machine_name = "${element(azurerm_virtual_machine.vm.*.name, count.index)}"
+  publisher = "Microsoft.Compute"
+  type = "CustomScriptExtension"
+  type_handler_version = "1.9"
+  count = "${var.vm_count}"
+
+  settings = <<SETTINGS
+  {
+      "fileUris":  ${jsonencode(var.file_uris)},
+      "commandToExecute": "powershell -command \"[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64encode(data.template_file.init.rendered)}')) | Out-File -filepath ${var.server_config_script} \" && powershell -File ${var.server_config_script} "
+  }
+  SETTINGS
+
+  depends_on = ["azurerm_virtual_machine.vm"]
+}
+
+data "template_file" "init" {
+  template = "${file("${var.server_config_script_path}")}"
+}
+
+
+
